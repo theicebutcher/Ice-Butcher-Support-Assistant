@@ -1,4 +1,7 @@
 Flask
 openai
+gspread
 python-dotenv
 rapidfuzz
+google-auth
+flask-cors
