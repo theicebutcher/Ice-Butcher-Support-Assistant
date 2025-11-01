@@ -4,6 +4,17 @@ from flask import Flask, render_template, request, jsonify
 import openai
 from dotenv import load_dotenv
 import json
+import gspread
+from flask_cors import CORS
+
+# Authenticate to Google Sheets API
+gc = gspread.service_account(filename='avatarbobo-jqrl-a5a4668c4ba0.json') # Replace with the actual path to your service account credentials file
+
+# Open the Google Sheet by title
+sheet = gc.open_by_key('1AC_utnrgclGgm1xMkSW_APhVY9c-ORIzGrT7mu7fHdI') # Replace with your spreadsheet ID
+
+# Select the worksheet (tab)
+worksheet = sheet.sheet1 # Assuming you want to access the first worksheet
 
 # Load FAQ data from a JSON file
 # Load FAQ data from a JSON file with UTF-8 encoding
@@ -27,6 +38,7 @@ with open('faq.json', 'r', encoding='utf-8') as file:
 
 
 app = Flask(__name__)
+CORS(app)
 app.config["UPLOAD_FOLDER"] = "static/uploads"
 
 # Load environment variables from .env file
@@ -84,6 +96,40 @@ def find_top_matches(user_input, data):
     return sorted_matches  # Returns top 100 matches
 
 conversation_history = []
+
+
+def find_order_in_sheet(order_id):
+# Retrieve all values from the worksheet
+    data = worksheet.get_all_records()
+
+# Search for the order_id in the data
+    for row in data:
+        if str(row.get("Order ID")) == order_id:  # Assuming your column is labeled "Order ID"
+            return row
+
+    return None
+
+@app.route('/track_order', methods=['POST'])
+def track_order():
+    data = request.get_json()
+    order_id = data.get('order_id')
+    if not order_id:
+        return jsonify({'error': 'Order ID is required'}), 400
+    # Search for the order in Google Sheets
+    order_data = find_order_in_sheet(order_id)
+
+    if order_data:
+        # If order is found, return the details
+        return jsonify({
+            'found': True,
+            'order_id': order_id,
+            'status': order_data.get('Status', 'N/A'),  # Replace 'Status' with your actual column name
+            'details': order_data.get('Details', 'N/A')  # Replace 'Details' with your actual column name
+        })
+    else:
+        # If order is not found, return an error message
+        return jsonify({'found': False, 'message': 'Order not found'})
+
 @app.route("/chatbot", methods=["POST"])
 def chatbot():
     
@@ -166,3 +212,4 @@ def chatbot():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
